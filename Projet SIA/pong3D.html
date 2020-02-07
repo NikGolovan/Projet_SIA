@@ -1,0 +1,132 @@
+<html>
+	<head>
+		<title>3D Pong</title>
+		<script src="src/lib/three.js"></script>
+		<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+		<style>
+			body { overflow: hidden; margin: 0; }
+		</style>
+	</head>
+  <meta charset="UTF-8" />
+	<body>
+		<script>
+		var scene = new THREE.Scene();
+		var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+		camera.position.set(0, 12, 17);
+		var renderer = new THREE.WebGLRenderer();
+    renderer.setClearColor(0xffffff, 1);
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		document.body.appendChild(renderer.domElement);
+
+		var controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+		scene.add(new THREE.AmbientLight(0xffffff, .8));
+		var light = new THREE.DirectionalLight(0xffffff, .5);
+		light.position.set(10, 10, -10);
+		scene.add(light);
+
+		scene.add(new THREE.GridHelper(20, 20, "gray", "gray"));
+
+		var objects = [];
+		let leftWall = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 20), new THREE.MeshLambertMaterial({color: Math.random() * 0xffffff}));
+		leftWall.position.set(-10, 0, 0);
+		objects.push(leftWall);
+		scene.add(leftWall);
+
+    let rightWall = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 20), new THREE.MeshLambertMaterial({color: Math.random() * 0xffffff}));
+		rightWall.position.set(10, 0, 0);
+		objects.push(rightWall);
+		scene.add(rightWall);
+
+    let bottomPaddle = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 5), new THREE.MeshLambertMaterial({color: Math.random() * 0xffffff}));
+    bottomPaddle.position.set(0, 0, 10);
+    bottomPaddle.rotation.y = Math.PI / 2;
+    objects.push(bottomPaddle);
+    scene.add(bottomPaddle);
+
+    let upperPaddle = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 5), new THREE.MeshLambertMaterial({color: Math.random() * 0xffffff}));
+    upperPaddle.position.set(0, 0, -10);
+    upperPaddle.rotation.y = Math.PI / 2;
+    objects.push(upperPaddle);
+    scene.add(upperPaddle);
+
+		var objDestin = new THREE.Mesh(new THREE.SphereGeometry(.5, 16, 12), new THREE.MeshLambertMaterial({
+		  color: "blue"
+		}));
+		scene.add(objDestin);
+
+		var raycaster = new THREE.Raycaster();
+		var intersects;
+		var direction = new THREE.Vector3();
+		var far = new THREE.Vector3();
+		var clock = new THREE.Clock();
+		var time = 0;
+
+    var xSpeed = 1;
+    var ySpeed = 2;
+
+    // mouvement de joueur
+    document.addEventListener("keydown", onDocumentKeyDown, false);
+    function onDocumentKeyDown(event) {
+        var keyCode = event.which;
+
+        if (keyCode == 37) {
+            bottomPaddle.position.x -= xSpeed;
+
+            if (bottomPaddle.position.x <= -7) {
+              bottomPaddle.position.x = -7;
+            }
+        } else if (keyCode == 39) {
+            bottomPaddle.position.x += xSpeed;
+
+            if (bottomPaddle.position.x >= 7) {
+              bottomPaddle.position.x = 7;
+            }
+        }
+    };
+
+    var rays = [
+			new THREE.Vector3(0, 0, 9), // centre de bottomPaddle
+			new THREE.Vector3(0, 0, -9), // centre de upperPaddle
+			new THREE.Vector3(9, 0, 0), // centre de mur à gauche
+			new THREE.Vector3(-9, 0, 0), // centre de mur à droite
+      //new THREE.Vector3(0, 0, 1), // left side
+      //new THREE.Vector3(1, 0, 1),
+      //new THREE.Vector3(1, 0, 0),
+      //new THREE.Vector3(1, 0, -1),
+      //new THREE.Vector3(0, 0, -1), // right side
+      //new THREE.Vector3(-1, 0, -1),
+      //new THREE.Vector3(-1, 0, 0),
+      //new THREE.Vector3(-1, 0, 1)
+    ];
+
+		render();
+    var dx = Math.cos(time + Math.PI) * 10;
+    var dy = 0;
+    var dz = Math.sin(time + Math.PI) * 3;
+		var dxPerFrame = 1; // how to move in a single frame
+
+    // physique de balle
+		function render() {
+		  time += clock.getDelta();
+		  requestAnimationFrame(render);
+      objDestin.position.set(-9, 0, 0);
+			//objDestin.position.setX(dxPerFrame);
+
+			//dxPerFrame++;
+
+			console.log(objDestin.position.x);
+
+			for (var i = 0; i < rays.length; i++) {
+        raycaster.set(objDestin.position, rays[i]);
+        intersects = raycaster.intersectObjects(objects);
+
+        if (intersects.length > 0) {
+					//dxPerFrame--;
+        }
+      }
+		  renderer.render(scene, camera);
+		}
+		</script>
+	</body>
+</html>
