@@ -2,6 +2,7 @@
 	<head>
 		<title>3D Pong</title>
 		<script src="src/lib/three.js"></script>
+    <script src="src/lib/stats.js"></script>
 		<script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
 		<style>
 			body { overflow: hidden; margin: 0; }
@@ -13,7 +14,7 @@
 		var scene = new THREE.Scene();
 		var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
 		camera.position.set(0, 12, 17);
-		var renderer = new THREE.WebGLRenderer();
+		var renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setClearColor(0xffffff, 1);
 		renderer.setSize(window.innerWidth, window.innerHeight);
 		document.body.appendChild(renderer.domElement);
@@ -25,7 +26,7 @@
 		light.position.set(10, 10, -10);
 		scene.add(light);
 
-		scene.add(new THREE.GridHelper(20, 20, "gray", "gray"));
+		//scene.add(new THREE.GridHelper(20, 20, "gray", "gray"));
 
 		var objects = [];
 		let leftWall = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 20), new THREE.MeshLambertMaterial({color: Math.random() * 0xffffff}));
@@ -50,6 +51,12 @@
     objects.push(upperPaddle);
     scene.add(upperPaddle);
 
+    let floor = new THREE.Mesh(new THREE.BoxGeometry(20, 20, 0), new THREE.MeshLambertMaterial({color: Math.random() * 0xffffff}));
+		floor.position.set(0, -1, 0);
+    floor.rotation.x = Math.PI / 2;
+		objects.push(floor);
+		scene.add(floor);
+
 		var objDestin = new THREE.Mesh(new THREE.SphereGeometry(.5, 16, 12), new THREE.MeshLambertMaterial({
 		  color: "blue"
 		}));
@@ -62,35 +69,97 @@
 		var clock = new THREE.Clock();
 		var time = 0;
 
-    var xSpeed = 1;
-    var ySpeed = 2;
+    var paddleRate = .1;
+    var paddleSpeed = 5;
+
+    var stats = new Stats();
+
+    function showFps() {
+      stats.domElement.style.position = 'absolute';
+      stats.domElement.style.bottom = '0px';
+      stats.domElement.style.zIndex = 100;
+      document.body.appendChild(stats.domElement );
+    }
+
+    var attachBall = false;
+    var attachPaddle = false;
 
     // mouvement de joueur
     document.addEventListener("keydown", onDocumentKeyDown, false);
     function onDocumentKeyDown(event) {
         var keyCode = event.which;
+        var delta = clock.getDelta(); // seconds.
+        var moveDistance = 0.1 * 9;
 
-        if (keyCode == 37) {
-            bottomPaddle.position.x -= xSpeed;
-
-            if (bottomPaddle.position.x <= -7) {
-              bottomPaddle.position.x = -7;
-            }
-        } else if (keyCode == 39) {
-            bottomPaddle.position.x += xSpeed;
-
-            if (bottomPaddle.position.x >= 7) {
-              bottomPaddle.position.x = 7;
-            }
+        switch (keyCode) {
+          case 37:
+          case 65:
+            bottomPaddle.translateZ( -moveDistance );
+            if (bottomPaddle.position.x <= -7) { bottomPaddle.position.x = -7; }
+            break;
+          case 39:
+          case 68:
+            bottomPaddle.translateZ( moveDistance );
+            if (bottomPaddle.position.x >= 7) {bottomPaddle.position.x = 7; }
+            break;
+          case 48:
+          case 96:
+            attachBall = false;
+            attachPaddle = false;
+            camera.position.set(0, 12, 17);
+            break;
+          case 49:
+          case 97:
+            if (!attachPaddle) { attachPaddle = true; attachBall = false; }
+            break;
+          case 50:
+          case 98:
+            if (!attachBall) { attachBall = true; attachPaddle = false; }
+            break;
+          case 70:
+            showFps();
+            break;
+          case 74:
+            spawnJoker();
+            break;
+          default:
+            return;
         }
+        controls.update();
+        stats.update();
     };
+
+    function attachCameraToBall() {
+      var relativeCameraOffset = new THREE.Vector3(0,5,5);
+      var cameraOffset = relativeCameraOffset.applyMatrix4( objDestin.matrixWorld );
+
+      camera.position.x = cameraOffset.x;
+    	camera.position.y = cameraOffset.y;
+    	camera.position.z = cameraOffset.z;
+    	camera.lookAt( objDestin.position );
+    }
+
+    function attachCameraToPaddle() {
+      var relativeCameraOffset = new THREE.Vector3(0,8,1);
+      var cameraOffset = relativeCameraOffset.applyMatrix4( bottomPaddle.matrixWorld );
+
+      camera.position.x = cameraOffset.x;
+      camera.position.y = cameraOffset.y;
+      camera.position.z = cameraOffset.z + Math.PI * 4;
+      camera.lookAt( bottomPaddle.position );
+    }
+
+    function update(step) {
+  		const angleIncr = Math.PI * 20 * step / 2 ; // une rotation complète en 5 secondes
+  		bottomPaddle.translateZ(angleIncr);
+    }
 
     var rays = [
 			new THREE.Vector3(0, 0, 9), // centre de bottomPaddle
 			new THREE.Vector3(0, 0, -9), // centre de upperPaddle
-			new THREE.Vector3(9, 0, 0), // centre de mur à gauche
-			new THREE.Vector3(-9, 0, 0), // centre de mur à droite
-      //new THREE.Vector3(0, 0, 1), // left side
+			new THREE.Vector3(9, 0, 0), // centre de mur à droite
+			new THREE.Vector3(-9, 0, 0), // centre de mur à gauche
+      new THREE.Vector3(0, 0, 1), // UNCOMMENT SO INTERSECTS WORKS
       //new THREE.Vector3(1, 0, 1),
       //new THREE.Vector3(1, 0, 0),
       //new THREE.Vector3(1, 0, -1),
@@ -100,33 +169,93 @@
       //new THREE.Vector3(-1, 0, 1)
     ];
 
+    // spawn jokers
+    setInterval(spawnJoker, 35000);
+
+    function spawnJoker() {
+      let obj = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({
+        color: Math.random() * 0xffffff
+      }));
+      obj.position.set(THREE.Math.randInt(-8,8), .5, THREE.Math.randInt(-8, 8));
+
+      // prevent joker apper on top of another joker
+      for (var i = 0; i < objects.length; i++) {
+        var sumObjPlace = objects[i].position.x + objects[i].position.y + objects[i].position.z;
+        var sumObjAPlacer = obj.position.x + obj.position.y + obj.position.z;
+        if (sumObjPlace === sumObjAPlacer) {
+            return;
+        }
+      }
+      objects.push(obj);
+      scene.add(obj);
+    }
+
 		render();
     var dx = Math.cos(time + Math.PI) * 10;
     var dy = 0;
     var dz = Math.sin(time + Math.PI) * 3;
-		var dxPerFrame = 1; // how to move in a single frame
+		var xSpeed = 0; // how to move in a single frame
 
     // physique de balle
 		function render() {
 		  time += clock.getDelta();
 		  requestAnimationFrame(render);
-      objDestin.position.set(-9, 0, 0);
-			//objDestin.position.setX(dxPerFrame);
+      var dx = Math.cos(time + Math.PI) * 10;
+      var dy = 0;
+      var dz = Math.sin(time + Math.PI) * 3;
 
-			//dxPerFrame++;
+      objDestin.position.set(dx, 0, 0);
+			//objDestin.position.x = xSpeed;
 
-			console.log(objDestin.position.x);
+      if (attachBall) {
+        attachCameraToBall();
+      }
+
+      if (attachPaddle) {
+        attachCameraToPaddle();
+      }
+
+      //xSpeed++;
 
 			for (var i = 0; i < rays.length; i++) {
         raycaster.set(objDestin.position, rays[i]);
         intersects = raycaster.intersectObjects(objects);
 
         if (intersects.length > 0) {
-					//dxPerFrame--;
+          // right
+          if ( objDestin.position.x >= 9 ) {
+          }
+          // left
+          //if ( objDestin.position.x - 0.5 <= 0 ) {
+          //  xSpeed *= -1;
+          //  objDestin.position.x = 0.5;
+          //  objDestin.position.x = xSpeed;
+          //}
+          // down
+        //  if ( objDestin.position.y + 0.5 >= 10 ) {
+        //    objDestin.position.y  = 10 - 0.5;
+        //    objDestin.position.y -= dxPerFrame;
+        //  }
+
+          // up
+        //  if ( objDestin.position.y - 0.5 <= 0 ) {
+        //    objDestin.position.y = 0.5;
+        //   objDestin.position.y -= dxPerFrame;
+        //  }
         }
       }
+      AIPlayer();
 		  renderer.render(scene, camera);
 		}
+
+    // artificial intellegence
+    function AIPlayer() {
+      var relativeCameraOffset = new THREE.Vector3();
+      var cameraOffset = relativeCameraOffset.applyMatrix4(objDestin.matrixWorld);
+
+      upperPaddle.position.x = cameraOffset.x;
+    }
+
 		</script>
 	</body>
 </html>
